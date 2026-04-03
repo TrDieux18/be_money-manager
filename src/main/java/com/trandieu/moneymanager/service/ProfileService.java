@@ -1,13 +1,22 @@
 package com.trandieu.moneymanager.service;
 
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.trandieu.moneymanager.dto.AuthDTO;
 import com.trandieu.moneymanager.dto.ProfileDTO;
 import com.trandieu.moneymanager.entity.ProfileEntity;
 import com.trandieu.moneymanager.repository.ProfileRepository;
+import com.trandieu.moneymanager.util.JwtUtil;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,8 +29,13 @@ public class ProfileService {
 
    private final PasswordEncoder passwordEncoder;
 
+   private final AuthenticationManager authenticationManager;
+
+   private final JwtUtil jwtUtil;
+
    public ProfileDTO registerProfile(ProfileDTO profileDTO) {
       ProfileEntity profileEntity = toEntity(profileDTO);
+      profileEntity.setEmail(profileEntity.getEmail().trim());
       profileEntity.setPassword(passwordEncoder.encode(profileEntity.getPassword()));
 
       if (profileRepository.findByEmail(profileEntity.getEmail()).isPresent()) {
@@ -46,7 +60,7 @@ public class ProfileService {
             .id(profileDTO.getId())
             .fullName(profileDTO.getFullName())
             .email(profileDTO.getEmail())
-            .password(passwordEncoder.encode(profileDTO.getPassword()))
+            .password(profileDTO.getPassword())
             .profileImageUrl(profileDTO.getProfileImageUrl())
             .createdAt(profileDTO.getCreatedAt())
             .updatedAt(profileDTO.getUpdatedAt())
@@ -78,4 +92,45 @@ public class ProfileService {
             .map(ProfileEntity::getIsActive)
             .orElse(false);
    }
+
+   public ProfileEntity getCurrentProfile() {
+      Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+      return profileRepository.findByEmail(authentication.getName())
+            .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + authentication.getName()));
+   }
+
+   public ProfileDTO getPublicProfile(String email) {
+      ProfileEntity currentUser = null;
+      if (email == null) {
+         currentUser = getCurrentProfile();
+      } else {
+         currentUser = profileRepository.findByEmail(email)
+               .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+      }
+      return ProfileDTO.builder()
+            .id(currentUser.getId())
+            .fullName(currentUser.getFullName())
+            .email(currentUser.getEmail())
+            .profileImageUrl(currentUser.getProfileImageUrl())
+            .createdAt(currentUser.getCreatedAt())
+            .updatedAt(currentUser.getUpdatedAt())
+            .build();
+   }
+
+   public Map<String, Object> authenticateAndGenerateToken(AuthDTO authDTO) {
+
+      try {
+         authenticationManager
+               .authenticate(new UsernamePasswordAuthenticationToken(authDTO.getEmail(), authDTO.getPassword()));
+         String token = jwtUtil.generateToken(authDTO.getEmail());
+         return Map.of(
+               "token", token,
+               "user", getPublicProfile(authDTO.getEmail()));
+      } catch (AuthenticationException e) {
+         throw new RuntimeException("Invalid email or password");
+      } catch (Exception e) {
+         throw new RuntimeException("Login failed: " + e.getMessage());
+      }
+   }
+
 }
