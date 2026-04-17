@@ -1,5 +1,9 @@
 package com.trandieu.moneymanager.service;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.trandieu.moneymanager.dto.ExpenseDTO;
@@ -28,6 +32,45 @@ public class ExpenseService {
       newExpense = expenseRepository.save(newExpense);
       return toDTO(newExpense);
 
+   }
+
+   // Retrieves all expenses for current month/base on the start date and end date
+   public List<ExpenseDTO> getCurrentMonthExpensesForCurrentUser() {
+      ProfileEntity profile = profileService.getCurrentProfile();
+      LocalDate now = LocalDate.now();
+      LocalDate startDate = now.withDayOfMonth(1);
+      LocalDate endDate = now.withDayOfMonth(now.lengthOfMonth());
+      List<ExpenseEntity> expenses = expenseRepository.findByProfileIdAndDateBetween(profile.getId(), startDate,
+            endDate);
+
+      return expenses.stream().map(this::toDTO).toList();
+
+   }
+
+   // delete expense by id
+   public void deleteExpenseById(Long id) {
+      ProfileEntity profile = profileService.getCurrentProfile();
+      ExpenseEntity expense = expenseRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Expense not found"));
+
+      if (!expense.getProfile().getId().equals(profile.getId())) {
+         throw new RuntimeException("Unauthorized to delete this expense");
+      }
+      expenseRepository.delete(expense);
+   }
+
+   // get lastest 5 expenses for current user
+   public List<ExpenseDTO> getLastest5ExpensesForCurrentUser() {
+      ProfileEntity profile = profileService.getCurrentProfile();
+      List<ExpenseEntity> expenses = expenseRepository.findTop5ByProfileIdOrderByDateDesc(profile.getId());
+      return expenses.stream().map(this::toDTO).toList();
+   }
+
+   // get total expenses for current user
+   public BigDecimal getTotalExpensesForCurrentUser() {
+      ProfileEntity profile = profileService.getCurrentProfile();
+      BigDecimal total = expenseRepository.findTotalExpenseByProfileId(profile.getId());
+      return total != null ? total : BigDecimal.ZERO;
    }
 
    // helper methods
