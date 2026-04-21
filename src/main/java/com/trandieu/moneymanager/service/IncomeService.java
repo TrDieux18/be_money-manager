@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.trandieu.moneymanager.dto.ExpenseDTO;
@@ -74,6 +75,17 @@ public class IncomeService {
       ProfileEntity profile = profileService.getCurrentProfile();
       BigDecimal total = incomeRepository.findTotalIncomeByProfileId(profile.getId());
       return total != null ? total : BigDecimal.ZERO;
+   }
+
+   // filter incomes by date range
+   public List<IncomeDTO> filterIncomes(LocalDate startDate, LocalDate endDate, String keyword, Sort sort) {
+      ProfileEntity profile = profileService.getCurrentProfile();
+
+      List<IncomeEntity> incomes = incomeRepository.findByProfileIdAndDateBetweenAndNameContainingIgnoreCase(
+            profile.getId(), startDate, endDate, keyword, sort);
+
+      return incomes.stream().map(this::toDTO).toList();
+
    }
 
    // helper methods

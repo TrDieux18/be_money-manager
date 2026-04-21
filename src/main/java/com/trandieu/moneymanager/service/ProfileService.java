@@ -19,9 +19,11 @@ import com.trandieu.moneymanager.repository.ProfileRepository;
 import com.trandieu.moneymanager.util.JwtUtil;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProfileService {
    private final ProfileRepository profileRepository;
 
@@ -34,22 +36,31 @@ public class ProfileService {
    private final JwtUtil jwtUtil;
 
    public ProfileDTO registerProfile(ProfileDTO profileDTO) {
+      log.info("Starting registration for email: {}", profileDTO.getEmail());
       ProfileEntity profileEntity = toEntity(profileDTO);
       profileEntity.setEmail(profileEntity.getEmail().trim());
       profileEntity.setPassword(passwordEncoder.encode(profileEntity.getPassword()));
 
       if (profileRepository.findByEmail(profileEntity.getEmail()).isPresent()) {
+         log.warn("Email already exists: {}", profileEntity.getEmail());
          throw new RuntimeException("Email already exists");
       }
 
       profileEntity.setActivationToken(UUID.randomUUID().toString());
       profileEntity = profileRepository.save(profileEntity);
+      log.info("Profile saved successfully with token: {}", profileEntity.getActivationToken());
+
       // send activation email here using profileEntity.getEmail() and
       // profileEntity.getActivationToken()
       String activationLink = "http://localhost:8080/api/activate?token=" + profileEntity.getActivationToken();
       String subject = "Activate your account";
       String body = "Please click the following link to activate your account: " + activationLink;
-      emailService.sendEmail(profileEntity.getEmail(), subject, body);
+
+      try {
+         emailService.sendEmail(profileEntity.getEmail(), subject, body);
+      } catch (Exception e) {
+         throw e;
+      }
 
       return toDTO(profileEntity);
 

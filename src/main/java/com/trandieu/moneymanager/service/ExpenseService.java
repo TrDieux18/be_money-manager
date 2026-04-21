@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.trandieu.moneymanager.dto.ExpenseDTO;
@@ -71,6 +72,24 @@ public class ExpenseService {
       ProfileEntity profile = profileService.getCurrentProfile();
       BigDecimal total = expenseRepository.findTotalExpenseByProfileId(profile.getId());
       return total != null ? total : BigDecimal.ZERO;
+   }
+
+   // filter expenses by date range
+   public List<ExpenseDTO> filterExpenses(LocalDate startDate, LocalDate endDate, String keyword, Sort sort) {
+      ProfileEntity profile = profileService.getCurrentProfile();
+
+      List<ExpenseEntity> expenses = expenseRepository.findByProfileIdAndDateBetweenAndNameContainingIgnoreCase(
+            profile.getId(), startDate, endDate, keyword, sort);
+
+      return expenses.stream().map(this::toDTO).toList();
+
+   }
+
+   // notification
+   public List<ExpenseDTO> getExpensesForUserOnDate(Long profileId, LocalDate date) {
+    
+      List<ExpenseEntity> expenses = expenseRepository.findByProfileIdAndDate(profileId, date);
+      return expenses.stream().map(this::toDTO).toList();
    }
 
    // helper methods
